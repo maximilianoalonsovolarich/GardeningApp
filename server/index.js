@@ -18,10 +18,10 @@ const genAI = new GoogleGenerativeAI(apiKey);
 const sessions = {};
 
 const generationConfig = {
-  temperature: 1,
+  temperature: 0.7,
   topP: 0.95,
   topK: 64,
-  maxOutputTokens: 8192,
+  maxOutputTokens: 512,
   responseMimeType: 'text/plain',
 };
 
@@ -35,19 +35,22 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Endpoint to handle chat messages
 app.post('/api/chat', async (req, res) => {
   const { sessionId, message } = req.body;
 
   if (!sessionId || !message) {
     return res
       .status(400)
-      .json({ error: 'Session ID and message are required' });
+      .json({ error: 'Se requiere el ID de la sesión y un mensaje.' });
   }
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      model: genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        systemInstruction:
+          'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imagenes solo que sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+      }),
       history: [],
     };
   }
@@ -61,7 +64,6 @@ app.post('/api/chat', async (req, res) => {
     const result = await chatSession.sendMessage(message);
     const aiMessage = result.response.text();
 
-    // Update session history with user and model responses
     sessions[sessionId].history.push({
       role: 'user',
       parts: [{ text: message }],
@@ -73,36 +75,38 @@ app.post('/api/chat', async (req, res) => {
 
     res.json({ message: aiMessage });
   } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Error sending message' });
+    console.error('Error al enviar el mensaje:', error);
+    res.status(500).json({ error: 'Error al enviar el mensaje.' });
   }
 });
 
-// Endpoint to handle image uploads
 app.post('/api/upload-image', upload.single('image'), async (req, res) => {
   const { sessionId } = req.body;
 
-  console.log('Received body:', req.body);
-  console.log('Received file:', req.file);
-
   if (!sessionId || !req.file) {
-    return res.status(400).json({ error: 'Session ID and image are required' });
+    return res
+      .status(400)
+      .json({ error: 'Se requiere el ID de la sesión y una imagen.' });
   }
 
   const imagePath = req.file.path;
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      model: genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        systemInstruction:
+          'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imagenes solo que sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+      }),
       history: [],
     };
   }
 
   try {
-    // Leer la imagen desde el sistema de archivos
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
-    const prompt = 'Analyze this image.';
+    const prompt =
+      '¿Puedes analizar esta imagen y decirme qué tipo de planta es?';
     const image = {
       inlineData: {
         data: base64Image,
@@ -110,38 +114,37 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
       },
     };
 
-    // Enviar la imagen y el prompt al modelo
     const result = await sessions[sessionId].model.generateContent([
       prompt,
       image,
     ]);
     const aiMessage = result.response.text();
 
-    // Actualizar el historial de la sesión
     sessions[sessionId].history.push({
       role: 'user',
-      parts: [{ text: 'Image uploaded' }],
+      parts: [{ text: 'Imagen subida' }],
     });
     sessions[sessionId].history.push({
       role: 'model',
       parts: [{ text: aiMessage }],
     });
 
-    // Responder con el mensaje del AI y la URL de la imagen
     res.json({
       message: aiMessage,
       imageUrl: `http://localhost:${port}/uploads/${req.file.filename}`,
     });
   } catch (error) {
-    console.error('Error processing image:', error);
-    res.status(500).json({ error: 'Error processing image' });
+    console.error('Error al procesar la imagen:', error);
+    res.status(500).json({ error: 'Error al procesar la imagen.' });
   }
 });
 
-// Servir imágenes subidas
+app.get('/test', (req, res) => {
+  res.send('Servidor accesible');
+});
+
 app.use('/uploads', express.static('uploads'));
 
-// Iniciar el servidor
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Servidor en ejecución en http://localhost:${port}`);
 });

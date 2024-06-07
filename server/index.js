@@ -9,7 +9,13 @@ require('dotenv').config();
 const app = express();
 const port = 5000;
 
-app.use(cors());
+app.use(
+  cors({
+    origin: '*', // Permitir solicitudes desde cualquier origen
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Permitir estos métodos HTTP
+    allowedHeaders: ['Content-Type', 'Authorization'], // Permitir estos headers
+  })
+);
 app.use(express.json());
 
 const apiKey = process.env.GEMINI_API_KEY;

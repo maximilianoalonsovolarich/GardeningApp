@@ -250,7 +250,7 @@ function App() {
           className="bg-green-700 hover:bg-green-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           disabled={loading}
         >
-          Enviar
+          Enviar Mensaje
         </button>
         <button
           onClick={cameraOpen ? captureImage : startCamera}
@@ -261,14 +261,18 @@ function App() {
           } text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline`}
           disabled={loading}
         >
-          {loading ? 'Enviando imagen...' : cameraOpen ? 'Foto' : 'Cámara'}
+          {loading
+            ? 'Enviando imagen...'
+            : cameraOpen
+            ? 'Sacar Foto'
+            : 'Abrir Cámara'}
         </button>
         {cameraOpen && (
           <button
             onClick={closeCamera}
             className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
-            Cerrar
+            Cerrar Cámara
           </button>
         )}
       </footer>

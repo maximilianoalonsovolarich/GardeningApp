@@ -2,17 +2,21 @@ import { h } from 'preact';
 import { useState, useRef } from 'preact/hooks';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import logoImg from './assets/viverocosalinda.jpg';
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [sessionId, setSessionId] = useState(uuidv4());
+  const [sessionId] = useState(uuidv4());
   const [loading, setLoading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [capturedImageUrl, setCapturedImageUrl] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const inputFileRef = useRef(null);
+
+  const additionalMessage =
+    'Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00.';
 
   const sendMessage = async () => {
     if (input.trim() === '' || loading) return;
@@ -27,7 +31,8 @@ function App() {
         sessionId,
         message: input,
       });
-      const aiMessage = response.data.message;
+      let aiMessage = response.data.message;
+      aiMessage = `${aiMessage} ${additionalMessage}`;
       setMessages([...newMessages, { text: aiMessage, user: false }]);
     } catch (error) {
       console.error(
@@ -59,11 +64,18 @@ function App() {
           headers: { 'Content-Type': 'multipart/form-data' },
         }
       );
-      const aiMessage = response.data.message;
+      let aiMessage = response.data.message;
+      const isPlantImage = aiMessage.includes('planta');
+      if (isPlantImage) {
+        aiMessage = `${aiMessage} ${additionalMessage}`;
+      } else {
+        aiMessage =
+          'No puedo responder sobre esta imagen, ya que no es una planta.';
+      }
       setMessages([
         ...messages,
         { text: 'Imagen subida', user: true },
-        { text: aiMessage, user: false, viveroImage: true },
+        { text: aiMessage, user: false, viveroImage: isPlantImage },
       ]);
     } catch (error) {
       console.error('Error al subir la imagen:', error);
@@ -132,60 +144,81 @@ function App() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
   return (
-    <div className="p-5 bg-purple-100 min-h-screen flex flex-col">
-      <h1 className="text-2xl font-bold mb-5 text-purple-900 text-center">
-        🌿 Consultas sobre Plantas. 🌿
-      </h1>
-      <div className="border p-5 flex-grow overflow-y-auto mb-5 bg-purple-50 rounded-lg shadow-md">
+    <div
+      className="min-h-screen flex flex-col bg-cover bg-center"
+      style={{
+        backgroundImage:
+          'url("https://cdn.pixabay.com/photo/2017/04/08/09/31/flowers-2211849_1280.jpg")',
+      }}
+    >
+      <header className="flex items-center p-4 bg-white bg-opacity-90 shadow-md">
+        <div className="flex items-center">
+          <img
+            src={logoImg}
+            alt="Vivero Cosa Linda"
+            className="h-12 w-12 mr-4 rounded-full"
+          />
+          <div>
+            <h1 className="text-2xl font-bold text-green-700">
+              Vivero Cosa Linda
+            </h1>
+            <p className="text-sm text-green-500">Tu experto en plantas</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow overflow-y-auto p-4 bg-white bg-opacity-90 rounded-lg shadow-md mx-4 mt-4 mb-5">
         {messages.map((msg, index) => (
           <div
             key={index}
-            className={`text-${msg.user ? 'right' : 'left'} mb-3 flex ${
-              msg.user ? 'justify-end' : ''
-            }`}
+            className={`flex ${
+              msg.user ? 'justify-end' : 'justify-start'
+            } mb-3`}
           >
             <div
-              className={`inline-block p-2 rounded-lg ${
-                msg.user ? 'bg-purple-300' : 'bg-purple-200'
-              } max-w-xs`}
+              className={`p-2 rounded-lg max-w-xs ${
+                msg.user ? 'bg-green-300' : 'bg-green-200'
+              }`}
             >
               {msg.text}
               {msg.viveroImage && (
                 <img
-                  src="path/to/vivero-image.jpg"
+                  src={logoImg}
                   alt="Vivero Cosa Linda"
-                  className="mt-2"
+                  className="h-12 w-12 mr-4 rounded-full"
                 />
               )}
             </div>
           </div>
         ))}
         {loading && (
-          <div className="text-left">
-            <div className="inline-block p-2 rounded-lg bg-purple-200 mb-2 animate-pulse flex">
-              <div className="h-2.5 w-2.5 bg-purple-600 rounded-full mr-1 animate-bounce"></div>
-              <div className="h-2.5 w-2.5 bg-purple-600 rounded-full mr-1 animate-bounce"></div>
-              <div className="h-2.5 w-2.5 bg-purple-600 rounded-full animate-bounce"></div>
+          <div className="flex justify-start mb-2">
+            <div className="p-2 rounded-lg bg-green-200 animate-pulse flex">
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full mr-1 animate-bounce"></div>
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full mr-1 animate-bounce"></div>
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full animate-bounce"></div>
             </div>
           </div>
         )}
-      </div>
-      <div className="flex items-center flex-wrap justify-center gap-2">
+      </main>
+
+      <footer className="flex items-center flex-wrap justify-center gap-2 mx-4 mb-4">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="flex-grow p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-          placeholder="Escribe tu pregunta..."
+          className="flex-grow p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="Escribe tu pregunta sobre plantas..."
         />
+
         <input
           type="file"
           onChange={(e) => uploadImage(e.target.files[0])}
@@ -214,7 +247,7 @@ function App() {
         </button>
         <button
           onClick={sendMessage}
-          className="bg-purple-700 hover:bg-purple-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          className="bg-green-700 hover:bg-green-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           disabled={loading}
         >
           Enviar Mensaje
@@ -224,7 +257,7 @@ function App() {
           className={`${
             cameraOpen
               ? 'bg-blue-500 hover:bg-blue-700'
-              : 'bg-purple-500 hover:bg-purple-700'
+              : 'bg-green-500 hover:bg-green-700'
           } text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline`}
           disabled={loading}
         >
@@ -242,15 +275,16 @@ function App() {
             Cerrar Cámara
           </button>
         )}
-      </div>
+      </footer>
+
       {cameraOpen && (
         <video
           ref={videoRef}
-          className="mt-5 w-full max-w-md mx-auto rounded-lg border-2 border-purple-300"
+          className="mt-4 w-full max-w-md mx-auto rounded-lg border-2 border-green-300"
         ></video>
       )}
       {capturedImageUrl && (
-        <div className="relative mt-5 w-full max-w-md mx-auto rounded-lg border-2 border-purple-300">
+        <div className="relative mt-4 w-full max-w-md mx-auto rounded-lg border-2 border-green-300">
           <img src={capturedImageUrl} alt="Captured" className="rounded-lg" />
           <button
             onClick={closeImage}

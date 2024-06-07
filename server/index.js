@@ -35,6 +35,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+const systemInstruction =
+  'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imágenes solo si son de plantas. Responde en español. No te salgas del contexto de plantas. Solo la debes analizar y decir que es si es algo relacionado con las plantas o vivero, si es otra cosa no debes dar informacion de lo que es ni analizarla. Eres un experto en plantas y debes responder solo sobre plantas su nombre cientifico mejor epoca para plantarla en argentina y datos extras que puedas aportar sobre la planta.';
+
 app.post('/api/chat', async (req, res) => {
   const { sessionId, message } = req.body;
 
@@ -48,8 +51,7 @@ app.post('/api/chat', async (req, res) => {
     sessions[sessionId] = {
       model: genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
-        systemInstruction:
-          'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imagenes solo que sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+        systemInstruction,
       }),
       history: [],
     };
@@ -95,8 +97,7 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     sessions[sessionId] = {
       model: genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
-        systemInstruction:
-          'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imagenes solo que sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+        systemInstruction,
       }),
       history: [],
     };
@@ -106,12 +107,9 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
     const prompt =
-      '¿Puedes analizar esta imagen y decirme qué tipo de planta es?';
+      '¿Puedes analizar esta imagen y decirme qué tipo de planta es? Solo la debes analizar y decir que es si es algo relacionado con las plantas o vivero, si es otra cosa no debes dar informacion de lo que es ni analizarla. Eres un experto en plantas y debes responder solo sobre plantas su nombre cientifico mejor epoca para plantarla en argentina y datos extras que puedas aportar sobre la planta.';
     const image = {
-      inlineData: {
-        data: base64Image,
-        mimeType: req.file.mimetype,
-      },
+      inlineData: { data: base64Image, mimeType: req.file.mimetype },
     };
 
     const result = await sessions[sessionId].model.generateContent([
@@ -120,17 +118,23 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     ]);
     const aiMessage = result.response.text();
 
+    let finalMessage =
+      'No puedo responder sobre esta imagen, ya que no es una planta.';
+    if (aiMessage.includes('planta')) {
+      finalMessage = aiMessage;
+    }
+
     sessions[sessionId].history.push({
       role: 'user',
       parts: [{ text: 'Imagen subida' }],
     });
     sessions[sessionId].history.push({
       role: 'model',
-      parts: [{ text: aiMessage }],
+      parts: [{ text: finalMessage }],
     });
 
     res.json({
-      message: aiMessage,
+      message: finalMessage,
       imageUrl: `http://localhost:${port}/uploads/${req.file.filename}`,
     });
   } catch (error) {

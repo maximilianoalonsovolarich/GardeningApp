@@ -151,7 +151,13 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-cover bg-center">
+    <div
+      className="min-h-screen flex flex-col bg-cover bg-center"
+      style={{
+        backgroundImage:
+          'url("https://cdn.pixabay.com/photo/2017/04/08/09/31/flowers-2211849_1280.jpg")',
+      }}
+    >
       <header className="flex items-center p-4 bg-white bg-opacity-90 shadow-md">
         <div className="flex items-center">
           <img
@@ -168,7 +174,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-grow overflow-y-auto p-4 bg-white bg-opacity-90 rounded-lg shadow-md mx-4 mt-4 mb-auto">
+      <main className="flex-grow overflow-y-auto p-4 bg-white bg-opacity-90 rounded-lg shadow-md mx-4 mt-4 mb-5">
         {messages.map((msg, index) => (
           <div
             key={index}
@@ -203,7 +209,7 @@ function App() {
         )}
       </main>
 
-      <footer className="flex items-center justify-between p-4 bg-white bg-opacity-90 shadow-md">
+      <footer className="flex items-center flex-wrap justify-center gap-2 mx-4 mb-4">
         <input
           type="text"
           value={input}
@@ -244,7 +250,7 @@ function App() {
           className="bg-green-700 hover:bg-green-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           disabled={loading}
         >
-          Enviar Mensaje
+          Enviar
         </button>
         <button
           onClick={cameraOpen ? captureImage : startCamera}
@@ -255,18 +261,14 @@ function App() {
           } text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline`}
           disabled={loading}
         >
-          {loading
-            ? 'Enviando imagen...'
-            : cameraOpen
-            ? 'Sacar Foto'
-            : 'Abrir Cámara'}
+          {loading ? 'Enviando imagen...' : cameraOpen ? 'Foto' : 'Cámara'}
         </button>
         {cameraOpen && (
           <button
             onClick={closeCamera}
             className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
-            Cerrar Cámara
+            Cerrar
           </button>
         )}
       </footer>

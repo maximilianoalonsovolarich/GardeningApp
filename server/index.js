@@ -139,10 +139,6 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
   }
 });
 
-app.get('/test', (req, res) => {
-  res.send('Servidor accesible');
-});
-
 app.use('/uploads', express.static('uploads'));
 
 app.listen(port, () => {

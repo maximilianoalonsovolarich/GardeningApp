@@ -1,15 +1,23 @@
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
+const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
-const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const port = 5000;
 
-app.use(cors());
+// Configuración de CORS
+const corsOptions = {
+  origin: '*', // Cambia esto para permitir solo los orígenes necesarios
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -36,6 +44,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 app.post('/api/chat', async (req, res) => {
+  console.log('Solicitud recibida:', req.body);
   const { sessionId, message } = req.body;
 
   if (!sessionId || !message) {
@@ -81,6 +90,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+  console.log('Solicitud de subida de imagen recibida:', req.body);
   const { sessionId } = req.body;
 
   if (!sessionId || !req.file) {
@@ -141,6 +151,12 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
 
 app.use('/uploads', express.static('uploads'));
 
-app.listen(port, () => {
-  console.log(`Servidor en ejecución en http://localhost:${port}`);
+// Configuración HTTPS
+const options = {
+  key: fs.readFileSync('path/to/your/privkey.pem'),
+  cert: fs.readFileSync('path/to/your/fullchain.pem'),
+};
+
+https.createServer(options, app).listen(port, () => {
+  console.log(`Servidor en ejecución en https://localhost:${port}`);
 });

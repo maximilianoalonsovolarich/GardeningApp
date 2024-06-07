@@ -49,7 +49,7 @@ app.post('/api/chat', async (req, res) => {
       model: genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
         systemInstruction:
-          'Eres un experto en plantas que responde preguntas solo sobre plantas, solo debes analizar imagenes de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+          'Eres un experto en plantas que responde preguntas solo sobre plantas, tampoco puedes analizar imagenes que no sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
       }),
       history: [],
     };
@@ -96,7 +96,7 @@ app.post('/api/upload-image', upload.single('image'), async (req, res) => {
       model: genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
         systemInstruction:
-          'Eres un experto en plantas que responde preguntas solo sobre plantas, solo debes analizar imagenes de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
+          'Eres un experto en plantas que responde preguntas solo sobre plantas, tampoco puedes analizar imagenes que no sean de plantas. Responde en español. No te salgas del contexto de plantas. Al final de cada respuesta, incluye la siguiente línea: "Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00."',
       }),
       history: [],
     };

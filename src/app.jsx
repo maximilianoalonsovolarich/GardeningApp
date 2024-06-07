@@ -14,6 +14,8 @@ function App() {
   const canvasRef = useRef(null);
   const inputFileRef = useRef(null);
 
+  const serverIP = '192.168.1.5'; // Cambia esto a la IP local de tu servidor
+
   const sendMessage = async () => {
     if (input.trim() === '' || loading) return;
 
@@ -23,7 +25,7 @@ function App() {
     setInput('');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/chat', {
+      const response = await axios.post(`http://${serverIP}:5000/api/chat`, {
         sessionId,
         message: input,
       });
@@ -53,7 +55,7 @@ function App() {
 
     try {
       const response = await axios.post(
-        'http://localhost:5000/api/upload-image',
+        `http://${serverIP}:5000/api/upload-image`,
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -141,7 +143,7 @@ function App() {
   return (
     <div className="p-5 bg-purple-100 min-h-screen flex flex-col">
       <h1 className="text-2xl font-bold mb-5 text-purple-900 text-center">
-        🌿🌿 Consultas sobre Plantas 🌿🌿
+        🌿 Consultas sobre Plantas 🌿
       </h1>
       <div className="border p-5 flex-grow overflow-y-auto mb-5 bg-purple-50 rounded-lg shadow-md">
         {messages.map((msg, index) => (

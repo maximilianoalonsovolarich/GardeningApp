@@ -1,0 +1,270 @@
+index:
+
+const express = require('express');
+const cors = require('cors');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
+const fs = require('fs');
+require('dotenv').config();
+
+const app = express();
+const port = 5000;
+
+app.use(cors());
+app.use(express.json());
+
+const apiKey = process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(apiKey);
+
+const sessions = {};
+
+const generationConfig = {
+  temperature: 1,
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 8192,
+  responseMimeType: 'text/plain',
+};
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.fieldname + '-' + Date.now());
+  },
+});
+const upload = multer({ storage: storage });
+
+// Endpoint to handle chat messages
+app.post('/api/chat', async (req, res) => {
+  const { sessionId, message } = req.body;
+
+  if (!sessionId || !message) {
+    return res
+      .status(400)
+      .json({ error: 'Session ID and message are required' });
+  }
+
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = {
+      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      history: [],
+    };
+  }
+
+  try {
+    const chatSession = sessions[sessionId].model.startChat({
+      generationConfig,
+      history: sessions[sessionId].history,
+    });
+
+    const result = await chatSession.sendMessage(message);
+    const aiMessage = result.response.text();
+
+    // Update session history with user and model responses
+    sessions[sessionId].history.push({
+      role: 'user',
+      parts: [{ text: message }],
+    });
+    sessions[sessionId].history.push({
+      role: 'model',
+      parts: [{ text: aiMessage }],
+    });
+
+    res.json({ message: aiMessage });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: 'Error sending message' });
+  }
+});
+
+// Endpoint to handle image uploads
+app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+  const { sessionId } = req.body;
+
+  console.log('Received body:', req.body);
+  console.log('Received file:', req.file);
+
+  if (!sessionId || !req.file) {
+    return res.status(400).json({ error: 'Session ID and image are required' });
+  }
+
+  const imagePath = req.file.path;
+
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = {
+      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      history: [],
+    };
+  }
+
+  try {
+    // Leer la imagen desde el sistema de archivos
+    const imageBuffer = fs.readFileSync(imagePath);
+    const base64Image = imageBuffer.toString('base64');
+    const prompt = 'Analyze this image.';
+    const image = {
+      inlineData: {
+        data: base64Image,
+        mimeType: req.file.mimetype,
+      },
+    };
+
+    // Enviar la imagen y el prompt al modelo
+    const result = await sessions[sessionId].model.generateContent([
+      prompt,
+      image,
+    ]);
+    const aiMessage = result.response.text();
+
+    // Actualizar el historial de la sesión
+    sessions[sessionId].history.push({
+      role: 'user',
+      parts: [{ text: 'Image uploaded' }],
+    });
+    sessions[sessionId].history.push({
+      role: 'model',
+      parts: [{ text: aiMessage }],
+    });
+
+    // Responder con el mensaje del AI y la URL de la imagen
+    res.json({
+      message: aiMessage,
+      imageUrl: `http://localhost:${port}/uploads/${req.file.filename}`,
+    });
+  } catch (error) {
+    console.error('Error processing image:', error);
+    res.status(500).json({ error: 'Error processing image' });
+  }
+});
+
+// Servir imágenes subidas
+app.use('/uploads', express.static('uploads'));
+
+// Iniciar el servidor
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
+
+
+
+
+app.jsx
+
+import { h } from 'preact';
+import { useState } from 'preact/hooks';
+import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
+
+function App() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [sessionId, setSessionId] = useState(uuidv4());
+  const [image, setImage] = useState(null);
+
+  const sendMessage = async () => {
+    if (input.trim() === '') return;
+
+    const newMessages = [...messages, { text: input, user: true }];
+    setMessages(newMessages);
+    setInput('');
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/chat', {
+        sessionId,
+        message: input,
+      });
+      const aiMessage = response.data.message;
+      setMessages([...newMessages, { text: aiMessage, user: false }]);
+    } catch (error) {
+      console.error(
+        'Error sending message:',
+        error.response ? error.response.data : error.message
+      );
+      setMessages([
+        ...newMessages,
+        { text: 'Error sending message', user: false },
+      ]);
+    }
+  };
+
+  const uploadImage = async () => {
+    if (!image) return;
+
+    const formData = new FormData();
+    formData.append('image', image);
+    formData.append('sessionId', sessionId);
+
+    try {
+      const response = await axios.post(
+        'http://localhost:5000/api/upload-image',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      const aiMessage = response.data.message;
+      setMessages([
+        ...messages,
+        { text: 'Image uploaded', user: true },
+        { text: aiMessage, user: false },
+      ]);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setMessages([
+        ...messages,
+        { text: 'Error uploading image', user: false },
+      ]);
+    }
+  };
+
+  return (
+    <div className="p-5">
+      <h1 className="text-2xl font-bold mb-5">Gemini Chat</h1>
+      <div className="border p-5 h-80 overflow-y-auto mb-5">
+        {messages.map((msg, index) => (
+          <div key={index} className={`text-${msg.user ? 'right' : 'left'}`}>
+            <div
+              className={`inline-block p-2 rounded-lg bg-${
+                msg.user ? 'gray-200' : 'gray-100'
+              } mb-2`}
+            >
+              {msg.text}
+            </div>
+          </div>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+        className="w-full p-2 mb-2"
+        placeholder="Type your message..."
+      />
+      <input
+        type="file"
+        onChange={(e) => setImage(e.target.files[0])}
+        className="w-full p-2 mb-2"
+      />
+      <button
+        onClick={uploadImage}
+        className="w-full p-2 mb-2 bg-green-500 text-white"
+      >
+        Upload Image
+      </button>
+      <button
+        onClick={sendMessage}
+        className="w-full p-2 mb-2 bg-blue-500 text-white"
+      >
+        Send
+      </button>
+    </div>
+  );
+}
+
+export default App;

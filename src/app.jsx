@@ -141,7 +141,7 @@ function App() {
   return (
     <div className="p-5 bg-purple-100 min-h-screen flex flex-col">
       <h1 className="text-2xl font-bold mb-5 text-purple-900 text-center">
-        🌿 Consultas sobre Plantas 🌿
+        🌿🌿 Consultas sobre Plantas 🌿🌿
       </h1>
       <div className="border p-5 flex-grow overflow-y-auto mb-5 bg-purple-50 rounded-lg shadow-md">
         {messages.map((msg, index) => (

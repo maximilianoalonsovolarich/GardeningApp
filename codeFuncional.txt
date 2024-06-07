@@ -1,4 +1,311 @@
-index:
+import { h } from 'preact';
+import { useState, useRef } from 'preact/hooks';
+import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
+import logoImg from './assets/viverocosalinda.jpg';
+
+function App() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [sessionId] = useState(uuidv4());
+  const [loading, setLoading] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [capturedImageUrl, setCapturedImageUrl] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const inputFileRef = useRef(null);
+
+  const additionalMessage =
+    'Para más información, visita Vivero Cosa Linda en Merlo, Buenos Aires. Horarios: Lunes a Sábado de 8:00 a 17:00.';
+
+  const sendMessage = async () => {
+    if (input.trim() === '' || loading) return;
+
+    setLoading(true);
+    const newMessages = [...messages, { text: input, user: true }];
+    setMessages(newMessages);
+    setInput('');
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/chat', {
+        sessionId,
+        message: input,
+      });
+      let aiMessage = response.data.message;
+      aiMessage = `${aiMessage} ${additionalMessage}`;
+      setMessages([...newMessages, { text: aiMessage, user: false }]);
+    } catch (error) {
+      console.error(
+        'Error al enviar el mensaje:',
+        error.response ? error.response.data : error.message
+      );
+      setMessages([
+        ...newMessages,
+        { text: 'Error al enviar el mensaje.', user: false },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadImage = async (file) => {
+    if (!file) return;
+
+    setLoading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('sessionId', sessionId);
+
+    try {
+      const response = await axios.post(
+        'http://localhost:5000/api/upload-image',
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      );
+      let aiMessage = response.data.message;
+      const isPlantImage = aiMessage.includes('planta');
+      if (isPlantImage) {
+        aiMessage = `${aiMessage} ${additionalMessage}`;
+      } else {
+        aiMessage =
+          'No puedo responder sobre esta imagen, ya que no es una planta.';
+      }
+      setMessages([
+        ...messages,
+        { text: 'Imagen subida', user: true },
+        { text: aiMessage, user: false, viveroImage: isPlantImage },
+      ]);
+    } catch (error) {
+      console.error('Error al subir la imagen:', error);
+      setMessages([
+        ...messages,
+        { text: 'Error al subir la imagen.', user: false },
+      ]);
+    } finally {
+      setLoading(false);
+      setCameraOpen(false);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      setCameraOpen(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error al iniciar la cámara:', error);
+    }
+  };
+
+  const captureImage = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      const file = new File([blob], 'captured.jpg', { type: 'image/jpeg' });
+
+      const url = URL.createObjectURL(blob);
+      setCapturedImageUrl(url);
+
+      setTimeout(() => {
+        setCapturedImageUrl(null);
+        video.pause();
+        video.srcObject.getTracks().forEach((track) => track.stop());
+        setCameraOpen(false);
+        uploadImage(file);
+        URL.revokeObjectURL(url);
+      }, 2000);
+    }, 'image/jpeg');
+  };
+
+  const closeCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      setCameraOpen(false);
+    }
+  };
+
+  const closeImage = () => {
+    setCapturedImageUrl(null);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div
+      className="min-h-screen flex flex-col bg-cover bg-center"
+      style={{
+        backgroundImage:
+          'url("https://cdn.pixabay.com/photo/2017/04/08/09/31/flowers-2211849_1280.jpg")',
+      }}
+    >
+      <header className="flex items-center p-4 bg-white bg-opacity-90 shadow-md">
+        <div className="flex items-center">
+          <img
+            src={logoImg}
+            alt="Vivero Cosa Linda"
+            className="h-12 w-12 mr-4 rounded-full"
+          />
+          <div>
+            <h1 className="text-2xl font-bold text-green-700">
+              Vivero Cosa Linda
+            </h1>
+            <p className="text-sm text-green-500">Tu experto en plantas</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow overflow-y-auto p-4 bg-white bg-opacity-90 rounded-lg shadow-md mx-4 mt-4 mb-5">
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`flex ${
+              msg.user ? 'justify-end' : 'justify-start'
+            } mb-3`}
+          >
+            <div
+              className={`p-2 rounded-lg max-w-xs ${
+                msg.user ? 'bg-green-300' : 'bg-green-200'
+              }`}
+            >
+              {msg.text}
+              {msg.viveroImage && (
+                <img
+                  src={logoImg}
+                  alt="Vivero Cosa Linda"
+                  className="h-12 w-12 mr-4 rounded-full"
+                />
+              )}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start mb-2">
+            <div className="p-2 rounded-lg bg-green-200 animate-pulse flex">
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full mr-1 animate-bounce"></div>
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full mr-1 animate-bounce"></div>
+              <div className="h-2.5 w-2.5 bg-green-600 rounded-full animate-bounce"></div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      <footer className="flex items-center flex-wrap justify-center gap-2 mx-4 mb-4">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="flex-grow p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          placeholder="Escribe tu pregunta sobre plantas..."
+        />
+
+        <input
+          type="file"
+          onChange={(e) => uploadImage(e.target.files[0])}
+          className="hidden"
+          ref={inputFileRef}
+        />
+        <button
+          onClick={() => inputFileRef.current.click()}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          disabled={loading}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2l1.586-1.586a2 2 0 0 1 2.828 0L20 14m-6-6h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={sendMessage}
+          className="bg-green-700 hover:bg-green-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          disabled={loading}
+        >
+          Enviar Mensaje
+        </button>
+        <button
+          onClick={cameraOpen ? captureImage : startCamera}
+          className={`${
+            cameraOpen
+              ? 'bg-blue-500 hover:bg-blue-700'
+              : 'bg-green-500 hover:bg-green-700'
+          } text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline`}
+          disabled={loading}
+        >
+          {loading
+            ? 'Enviando imagen...'
+            : cameraOpen
+            ? 'Sacar Foto'
+            : 'Abrir Cámara'}
+        </button>
+        {cameraOpen && (
+          <button
+            onClick={closeCamera}
+            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          >
+            Cerrar Cámara
+          </button>
+        )}
+      </footer>
+
+      {cameraOpen && (
+        <video
+          ref={videoRef}
+          className="mt-4 w-full max-w-md mx-auto rounded-lg border-2 border-green-300"
+        ></video>
+      )}
+      {capturedImageUrl && (
+        <div className="relative mt-4 w-full max-w-md mx-auto rounded-lg border-2 border-green-300">
+          <img src={capturedImageUrl} alt="Captured" className="rounded-lg" />
+          <button
+            onClick={closeImage}
+            className="absolute top-0 right-0 mt-2 mr-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded focus:outline-none focus:shadow-outline"
+          >
+            X
+          </button>
+        </div>
+      )}
+      <canvas ref={canvasRef} className="hidden"></canvas>
+    </div>
+  );
+}
+
+export default App;
+
+
+
+
+
+
 
 const express = require('express');
 const cors = require('cors');
@@ -20,10 +327,10 @@ const genAI = new GoogleGenerativeAI(apiKey);
 const sessions = {};
 
 const generationConfig = {
-  temperature: 1,
+  temperature: 0.7,
   topP: 0.95,
   topK: 64,
-  maxOutputTokens: 8192,
+  maxOutputTokens: 512,
   responseMimeType: 'text/plain',
 };
 
@@ -37,19 +344,24 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Endpoint to handle chat messages
+const systemInstruction =
+  'Eres un experto en plantas que responde preguntas solo sobre plantas, puedes analizar imágenes solo si son de plantas. Responde en español. No te salgas del contexto de plantas. Solo la debes analizar y decir que es si es algo relacionado con las plantas o vivero, si es otra cosa no debes dar informacion de lo que es ni analizarla. Eres un experto en plantas y debes responder solo sobre plantas su nombre cientifico mejor epoca para plantarla en argentina y datos extras que puedas aportar sobre la planta.';
+
 app.post('/api/chat', async (req, res) => {
   const { sessionId, message } = req.body;
 
   if (!sessionId || !message) {
     return res
       .status(400)
-      .json({ error: 'Session ID and message are required' });
+      .json({ error: 'Se requiere el ID de la sesión y un mensaje.' });
   }
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      model: genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        systemInstruction,
+      }),
       history: [],
     };
   }
@@ -63,7 +375,6 @@ app.post('/api/chat', async (req, res) => {
     const result = await chatSession.sendMessage(message);
     const aiMessage = result.response.text();
 
-    // Update session history with user and model responses
     sessions[sessionId].history.push({
       role: 'user',
       parts: [{ text: message }],
@@ -75,196 +386,78 @@ app.post('/api/chat', async (req, res) => {
 
     res.json({ message: aiMessage });
   } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Error sending message' });
+    console.error('Error al enviar el mensaje:', error);
+    res.status(500).json({ error: 'Error al enviar el mensaje.' });
   }
 });
 
-// Endpoint to handle image uploads
 app.post('/api/upload-image', upload.single('image'), async (req, res) => {
   const { sessionId } = req.body;
 
-  console.log('Received body:', req.body);
-  console.log('Received file:', req.file);
-
   if (!sessionId || !req.file) {
-    return res.status(400).json({ error: 'Session ID and image are required' });
+    return res
+      .status(400)
+      .json({ error: 'Se requiere el ID de la sesión y una imagen.' });
   }
 
   const imagePath = req.file.path;
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      model: genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }),
+      model: genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        systemInstruction,
+      }),
       history: [],
     };
   }
 
   try {
-    // Leer la imagen desde el sistema de archivos
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
-    const prompt = 'Analyze this image.';
+    const prompt =
+      '¿Puedes analizar esta imagen y decirme qué tipo de planta es? Solo la debes analizar y decir que es si es algo relacionado con las plantas o vivero, si es otra cosa no debes dar informacion de lo que es ni analizarla. Eres un experto en plantas y debes responder solo sobre plantas su nombre cientifico mejor epoca para plantarla en argentina y datos extras que puedas aportar sobre la planta.';
     const image = {
-      inlineData: {
-        data: base64Image,
-        mimeType: req.file.mimetype,
-      },
+      inlineData: { data: base64Image, mimeType: req.file.mimetype },
     };
 
-    // Enviar la imagen y el prompt al modelo
     const result = await sessions[sessionId].model.generateContent([
       prompt,
       image,
     ]);
     const aiMessage = result.response.text();
 
-    // Actualizar el historial de la sesión
+    let finalMessage =
+      'No puedo responder sobre esta imagen, ya que no es una planta.';
+    if (aiMessage.includes('planta')) {
+      finalMessage = aiMessage;
+    }
+
     sessions[sessionId].history.push({
       role: 'user',
-      parts: [{ text: 'Image uploaded' }],
+      parts: [{ text: 'Imagen subida' }],
     });
     sessions[sessionId].history.push({
       role: 'model',
-      parts: [{ text: aiMessage }],
+      parts: [{ text: finalMessage }],
     });
 
-    // Responder con el mensaje del AI y la URL de la imagen
     res.json({
-      message: aiMessage,
+      message: finalMessage,
       imageUrl: `http://localhost:${port}/uploads/${req.file.filename}`,
     });
   } catch (error) {
-    console.error('Error processing image:', error);
-    res.status(500).json({ error: 'Error processing image' });
+    console.error('Error al procesar la imagen:', error);
+    res.status(500).json({ error: 'Error al procesar la imagen.' });
   }
 });
 
-// Servir imágenes subidas
-app.use('/uploads', express.static('uploads'));
-
-// Iniciar el servidor
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+app.get('/test', (req, res) => {
+  res.send('Servidor accesible');
 });
 
+app.use('/uploads', express.static('uploads'));
 
-
-
-app.jsx
-
-import { h } from 'preact';
-import { useState } from 'preact/hooks';
-import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
-
-function App() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [sessionId, setSessionId] = useState(uuidv4());
-  const [image, setImage] = useState(null);
-
-  const sendMessage = async () => {
-    if (input.trim() === '') return;
-
-    const newMessages = [...messages, { text: input, user: true }];
-    setMessages(newMessages);
-    setInput('');
-
-    try {
-      const response = await axios.post('http://localhost:5000/api/chat', {
-        sessionId,
-        message: input,
-      });
-      const aiMessage = response.data.message;
-      setMessages([...newMessages, { text: aiMessage, user: false }]);
-    } catch (error) {
-      console.error(
-        'Error sending message:',
-        error.response ? error.response.data : error.message
-      );
-      setMessages([
-        ...newMessages,
-        { text: 'Error sending message', user: false },
-      ]);
-    }
-  };
-
-  const uploadImage = async () => {
-    if (!image) return;
-
-    const formData = new FormData();
-    formData.append('image', image);
-    formData.append('sessionId', sessionId);
-
-    try {
-      const response = await axios.post(
-        'http://localhost:5000/api/upload-image',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      const aiMessage = response.data.message;
-      setMessages([
-        ...messages,
-        { text: 'Image uploaded', user: true },
-        { text: aiMessage, user: false },
-      ]);
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      setMessages([
-        ...messages,
-        { text: 'Error uploading image', user: false },
-      ]);
-    }
-  };
-
-  return (
-    <div className="p-5">
-      <h1 className="text-2xl font-bold mb-5">Gemini Chat</h1>
-      <div className="border p-5 h-80 overflow-y-auto mb-5">
-        {messages.map((msg, index) => (
-          <div key={index} className={`text-${msg.user ? 'right' : 'left'}`}>
-            <div
-              className={`inline-block p-2 rounded-lg bg-${
-                msg.user ? 'gray-200' : 'gray-100'
-              } mb-2`}
-            >
-              {msg.text}
-            </div>
-          </div>
-        ))}
-      </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-        className="w-full p-2 mb-2"
-        placeholder="Type your message..."
-      />
-      <input
-        type="file"
-        onChange={(e) => setImage(e.target.files[0])}
-        className="w-full p-2 mb-2"
-      />
-      <button
-        onClick={uploadImage}
-        className="w-full p-2 mb-2 bg-green-500 text-white"
-      >
-        Upload Image
-      </button>
-      <button
-        onClick={sendMessage}
-        className="w-full p-2 mb-2 bg-blue-500 text-white"
-      >
-        Send
-      </button>
-    </div>
-  );
-}
-
-export default App;
+app.listen(port, () => {
+  console.log(`Servidor en ejecución en http://localhost:${port}`);
+});
